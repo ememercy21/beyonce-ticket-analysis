@@ -10,7 +10,7 @@ Concert ticket prices have surged in recent years, driven by dynamic pricing, in
 - **Timing matters more than market size.** The "middle window" (2–4 months before the show) offers the most stable chance for good deals.
 - **Premium sections (B-Hive, Floor, VIP) have the highest deal probability**—up to 54% if purchased early.
 - **Market size has minimal impact.** Big, medium, and small cities all show roughly 21–22% good deal rates.
-- **Act fast on low-priced listings.
+- **Act fast on low-priced listings.**
 
 ## Data
 
