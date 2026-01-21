@@ -3,31 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The "Beyconomics" of Ticket Buying</title>
+    <title>Beyconomics | Mercy Eme</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: Georgia, serif; background: #1a1a1a; color: #f5f5f5; line-height: 1.7; padding: 2rem; }
-        .container { max-width: 700px; margin: 0 auto; }
-        h1 { font-size: 2.5rem; margin-bottom: 0.5rem; color: #c9a227; }
-        .subtitle { font-style: italic; color: #aaa; margin-bottom: 2rem; }
-        p { margin-bottom: 1.5rem; }
-        .links { margin-top: 2rem; }
-        a { color: #c9a227; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .link-item { margin-bottom: 1rem; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: #ffffff; 
+            color: #1a1a1a; 
+            line-height: 1.6; 
+            padding: 2rem;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        
+        .back-link { 
+            color: #666; 
+            text-decoration: none; 
+            font-size: 0.9rem;
+            display: inline-block;
+            margin-bottom: 2rem;
+        }
+        .back-link:hover { color: #000; }
+        
+        h1 { 
+            font-size: 2rem; 
+            font-weight: 600;
+            margin-bottom: 0.5rem; 
+        }
+        .subtitle { 
+            color: #666; 
+            margin-bottom: 2rem; 
+        }
+        
+        .cover-img {
+            width: 100%;
+            border-radius: 6px;
+            margin-bottom: 2rem;
+        }
+        
+        p { margin-bottom: 1.5rem; color: #333; }
+        
+        .links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        .link-btn {
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            color: #1a1a1a;
+            padding: 0.75rem 1.25rem;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: background 0.2s;
+        }
+        .link-btn:hover {
+            background: #e8e8e8;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Beyconomics</h1>
-        <p class="subtitle">A Data-Driven Analysis of Beyoncé's 2023 Renaissance Tour Resale Market</p>
+        <a href="https://ememercy21.github.io/" class="back-link">← Back to Portfolio</a>
+        
+        <h1>The "Beyconomics" of Ticket Buying</h1>
+        <p class="subtitle">A Data-Driven Analysis of Beyoncé's Renaissance Tour Resale Market</p>
+        
+        <img src="https://media.cnn.com/api/v1/images/stellar/prod/230929115401-21-beyonce-renaissance-tour-looks-illo-top-restricted.jpg?c=16x9&q=h_833,w_1480,c_fill" alt="Beyoncé Renaissance Tour collage" class="cover-img">
         
         <p>This project explores pricing dynamics in the secondary ticket market for Beyoncé's Renaissance World Tour, analyzing how factors like seat location, timing, and demand influenced resale prices.</p>
         
         <div class="links">
-            <div class="link-item">📊 <a href="presentation/The Beyconomics of Ticket Buying Presentation.pdf">View Presentation (PDF)</a></div>
-            <div class="link-item">📄 <a href="paper/bey_renaissance_ticket_project.pdf">Read Full Paper</a></div>
-            <div class="link-item">💻 <a href="https://github.com/ememercy21/beyonce-ticket-analysis">View Code on GitHub</a></div>
+            <a href="presentation/The Beyconomics of Ticket Buying Presentation.pdf" class="link-btn">📊 Presentation</a>
+            <a href="ppaper/bey_renaissance_ticket_project.pdf" class="link-btn">📄 Paper</a>
+            <a href="https://github.com/ememercy21/beyonce-ticket-analysis" class="link-btn">💻 GitHub Repo</a>
         </div>
     </div>
 </body>
