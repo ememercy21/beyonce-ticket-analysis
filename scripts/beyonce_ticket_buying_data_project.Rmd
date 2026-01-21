@@ -18,7 +18,7 @@ install.packages("stringr")
 install.packages("glmnet")
 install.packages("forcats")
 
-df <- read.csv("/.../renaissance/Renaissance_Combined_fix.csv", stringsAsFactors = FALSE) 
+df <- read.csv("data/Renaissance_Combined_fix.csv", stringsAsFactors = FALSE) 
 # cleaned using Google's cloud based JS app script tool
 
 library(dplyr)
@@ -264,7 +264,7 @@ print(head(best_deals, 30))
 
 
 ```{r}
-write.csv(df, "/Users/.../renaissancecleaned.csv", row.names = FALSE)
+write.csv(df, "data/renaissancecleaned_fix.csv, row.names = FALSE)
 ```
 
 
@@ -276,7 +276,7 @@ print(df)
 ```{r}
 # ========== Preparing CSV for EDA ==========
 # Read cleaned and prepared CSV
-df <- read.csv("/Users/mercyeme/Documents/STATS 404/beyonce csv files renaissance/renaissance/renaissancecleaned.csv")
+df <- read.csv("data/renaissancecleaned_fix.csv")
 
 # Set the new column order
 new_order <- c(
@@ -291,7 +291,7 @@ new_order <- c(
 df <- df[, new_order]
 
 # Write to new CSV
-write.csv(df, "/Users/mercyeme/Documents/STATS 404/beyonce csv files renaissance/renaissance/renaissancecleaned_fix.csv", row.names = FALSE)
+write.csv(df, "data/renaissancecleaned_fix.csv", row.names = FALSE)
 
 ```
 
@@ -987,7 +987,7 @@ hoslem.test(df$GoodDeal, prob_full)
 
 
 ```{r}
-write.csv(df, "/Users/.../renaissancecleaned_final.csv", row.names = FALSE) # final check to ensure data is formatted properly
+write.csv(df, "data/renaissancecleaned_final.csv", row.names = FALSE) # final check to ensure data is formatted properly
 ```
 
 
