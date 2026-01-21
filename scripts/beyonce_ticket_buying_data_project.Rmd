@@ -13,13 +13,21 @@ knitr::opts_chunk$set(echo = TRUE)
 # ------------------------------------------------------------------------------------------------------------
 rm( list = ls() )
 
-install.packages("dplyr")
-install.packages("stringr")
-install.packages("glmnet")
-install.packages("forcats")
-
 df <- read.csv("data/Renaissance_Combined_fix.csv", stringsAsFactors = FALSE) 
 # cleaned using Google's cloud based JS app script tool
+
+if (!require("dplyr")) install.packages("dplyr")
+if (!require("stringr")) install.packages("stringr")
+if (!require("glmnet")) install.packages("glmnet")
+if (!require("forcats")) install.packages("forcats")
+if (!require("ggplot2")) install.packages("ggplot2")
+if (!require("mgcv")) install.packages("mgcv")
+if (!require("scales")) install.packages("scales")
+if (!require("lubridate")) install.packages("lubridate")
+if (!require("pROC")) install.packages("pROC")
+if (!require("ResourceSelection")) install.packages("ResourceSelection")
+if (!require("GGally")) install.packages("GGally")
+if (!require("corrplot")) install.packages("corrplot")
 
 library(dplyr)
 library(stringr)
@@ -264,7 +272,7 @@ print(head(best_deals, 30))
 
 
 ```{r}
-write.csv(df, "data/renaissancecleaned_fix.csv, row.names = FALSE)
+write.csv(df, "data/renaissancecleaned_fix.csv", row.names = FALSE)
 ```
 
 
@@ -496,7 +504,6 @@ ggplot(newdat, aes(x = reorder(Section_Group, pred), y = pred)) +
 
 
 ```{r}
-install.packages("lubridate")
 library(lubridate)
 
 # Parse time and extract hour (returns 0–23 as intended)
@@ -779,7 +786,6 @@ head(result)
 
 
 ```{r}
-install.packages("GGally")
 library(GGally)
 GGally::ggpairs(df[, c("ActualPrice", "DaysBeforeEventDate", "Section_Group")])
 ```
@@ -1010,7 +1016,6 @@ corrplot(cor(X), method = "color")
 
 
 ```{r}
-install.packages("corrplot")
 library(corrplot)
 corrplot(cor(X), method = "color")
 ```
