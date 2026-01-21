@@ -1,6 +1,6 @@
 ---
 title: "Beyonce 2023 Renaissance Tour Resale Market ML Project"
-output: html_document
+output: rmarkdown::github_document
 date: "2025-06-09"
 ---
 
