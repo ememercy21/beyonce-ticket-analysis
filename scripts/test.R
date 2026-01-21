@@ -1,0 +1,1061 @@
+---
+  title: "Beyonce 2023 Renaissance Tour Resale Market ML Project"
+output: html_document
+date: "2025-06-09"
+---
+  
+  ```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Preliminaries
+# ------------------------------------------------------------------------------------------------------------
+rm( list = ls() )
+
+install.packages("dplyr")
+install.packages("stringr")
+install.packages("glmnet")
+install.packages("forcats")
+
+df <- read.csv("/.../renaissance/Renaissance_Combined_fix.csv", stringsAsFactors = FALSE) 
+# cleaned using Google's cloud based JS app script tool
+
+library(dplyr)
+library(stringr)
+library(glmnet)
+library(forcats)
+```
+
+
+```{r}
+# ========== Helper Functions ==========
+
+clean_str <- function(x) tolower(gsub(" ", "", ifelse(is.na(x), "", x)))
+extract_section_num <- function(section) as.numeric(str_extract(clean_str(section), "[0-9]{3}"))
+
+section_group <- function(section) {
+  s <- clean_str(section)
+  if (str_detect(s, "clubrenaissance")) return("Club Renaissance")
+  if (str_detect(s, "b-hive|bhive")) return("B-Hive")
+  if (str_detect(s, "purehoneyriser|vipriser|riser")) return("VIP Pure Honey Risers")
+  section_num <- extract_section_num(section)
+  if (!is.na(section_num)) return(paste0(section_num %/% 100, "00s"))
+  return("Other")
+}
+
+standard_zone <- function(zone, section) {
+  zone <- clean_str(zone)
+  section <- clean_str(section)
+  section_num <- extract_section_num(section)
+  if (str_detect(section, "^fld ?[a-z0-9]+")) return("Floor")
+  if (str_detect(section, "clubrenaissance|b-hive|bhive|purehoneyriser|vipriser|riser|pit")) return("VIP Floor")
+  if (str_starts(zone, "field") || zone == "field" || str_starts(section, "field")) {
+    if ((nchar(section) == 1 && str_detect(section, "^[a-z]$")) ||
+        str_detect(section, "^[0-9]+$") ||
+        str_detect(section, "^[a-z][0-9]+$")) {
+      return("Floor")
+    }
+  }
+  if (!is.na(section_num)) {
+    if (section_num >= 100 && section_num < 200) return("Lower Bowl")
+    if (section_num >= 200 && section_num < 300) return("Club")
+    if (section_num >= 300) return("Upper Bowl")
+  }
+  return("Other")
+}
+
+# ========== Data Preparation ==========
+
+df <- df %>%
+  mutate(
+    StandardZone   = mapply(standard_zone, Zone, Section),
+    Section_Group  = sapply(Section, section_group),
+    Section_Group  = ifelse(StandardZone == "Floor", "Floor", Section_Group),
+    Section_Num    = extract_section_num(Section),
+    PriceDate      = as.Date(PriceDate, format = "%m-%d-%y"),
+    EventDate      = as.Date(EventDate, format = "%Y-%m-%d"),
+    DaysBeforeEventDate = as.numeric(EventDate - PriceDate)
+  ) %>%
+  filter(Section_Group != "Other") %>%
+  mutate(row_id = row_number()) %>%
+  rename(ActualPrice = Price)
+
+# ========== Model Training Data ==========
+model_data <- df %>%
+  filter(!is.na(ActualPrice), !is.na(Section_Group), !is.na(City))
+
+all_levels_city         <- union(levels(factor(model_data$City)), levels(factor(model_data$City)))
+all_levels_sectiongroup <- union(levels(factor(model_data$Section_Group)), levels(factor(model_data$Section_Group)))
+
+model_data <- model_data %>%
+  mutate(
+    City = factor(City, levels = all_levels_city),
+    Section_Group = factor(Section_Group, levels = all_levels_sectiongroup)
+  )
+
+# ========== Model Comparison: OLS, Ridge, Lasso ==========
+
+# ========== Train/Test Split ==========
+
+# Define metrics
+rmse <- function(pred, actual) sqrt(mean((pred - actual)^2))
+r2   <- function(pred, actual) 1 - sum((pred - actual)^2) / sum((actual - mean(actual))^2)
+
+# Data
+X <- model.matrix(~ Section_Group + City, data = model_data)[, -1]
+y <- log(model_data$ActualPrice)
+
+set.seed(42)
+n <- nrow(X)
+test_idx <- sample(seq_len(n), size = floor(0.2 * n))
+train_idx <- setdiff(seq_len(n), test_idx)
+
+X_train <- X[train_idx, ]
+X_test  <- X[test_idx, ]
+y_train <- y[train_idx]
+y_test  <- y[test_idx]
+
+# OLS -- use as.data.frame for X_train/X_test
+ols_fit <- lm(y_train ~ ., data = as.data.frame(X_train))
+ols_pred <- predict(ols_fit, newdata = as.data.frame(X_test))
+
+# Ridge
+library(glmnet)
+ridge_cv <- cv.glmnet(X_train, y_train, alpha = 0)
+ridge_fit <- glmnet(X_train, y_train, alpha = 0, lambda = ridge_cv$lambda.min)
+ridge_pred <- as.numeric(predict(ridge_fit, newx = X_test))
+
+# Lasso
+lasso_cv <- cv.glmnet(X_train, y_train, alpha = 1)
+lasso_fit <- glmnet(X_train, y_train, alpha = 1, lambda = lasso_cv$lambda.min)
+lasso_pred <- as.numeric(predict(lasso_fit, newx = X_test))
+
+# Metrics
+ols_r2   <- r2(ols_pred, y_test)
+ridge_r2 <- r2(ridge_pred, y_test)
+lasso_r2 <- r2(lasso_pred, y_test)
+
+ols_rmse   <- rmse(ols_pred, y_test)
+ridge_rmse <- rmse(ridge_pred, y_test)
+lasso_rmse <- rmse(lasso_pred, y_test)
+
+ols_rmse_exp   <- rmse(exp(ols_pred), exp(y_test))
+ridge_rmse_exp <- rmse(exp(ridge_pred), exp(y_test))
+lasso_rmse_exp <- rmse(exp(lasso_pred), exp(y_test))
+
+# Summary Table
+results_table <- data.frame(
+  Model = c("OLS", "Ridge", "Lasso"),
+  R2_log = round(c(ols_r2, ridge_r2, lasso_r2), 3),
+  RMSE_log = round(c(ols_rmse, ridge_rmse, lasso_rmse), 3),
+  RMSE_original = round(c(ols_rmse_exp, ridge_rmse_exp, lasso_rmse_exp), 3)
+)
+print(results_table)
+
+```
+
+
+```{r}
+# ========== Diagnostic Plots for All Models ==========
+
+# OLS
+plot(ols_pred, y_test - ols_pred, main = "OLS Residuals vs Fitted",
+     xlab = "Fitted", ylab = "Residuals")
+abline(h = 0, col = "red")
+qqnorm(y_test - ols_pred, main = "OLS Residuals QQ Plot")
+qqline(y_test - ols_pred, col = "red")
+
+
+```
+
+
+```{r}
+# Ridge
+plot(ridge_pred, y_test - ridge_pred, main = "Ridge Residuals vs Fitted",
+     xlab = "Fitted", ylab = "Residuals")
+abline(h = 0, col = "red")
+qqnorm(y_test - ridge_pred, main = "Ridge Residuals QQ Plot")
+qqline(y_test - ridge_pred, col = "red")
+
+
+```
+
+
+```{r}
+# Lasso
+plot(lasso_pred, y_test - lasso_pred, main = "Lasso Residuals vs Fitted",
+     xlab = "Fitted", ylab = "Residuals")
+abline(h = 0, col = "red")
+qqnorm(y_test - lasso_pred, main = "Lasso Residuals QQ Plot")
+qqline(y_test - lasso_pred, col = "red")
+
+par(mfrow = c(1, 1))
+```
+
+
+```{r}
+# ========== Determine LASSO as Best Model for All Predictions ==========
+
+# Use all data now for LASSO predictions
+X_all <- model.matrix(~ Section_Group + City, data = model_data)[, -1]
+lasso_cv_full <- cv.glmnet(X_all, log(model_data$ActualPrice), alpha = 1)
+lasso_fit_full <- glmnet(X_all, log(model_data$ActualPrice), alpha = 1, lambda = lasso_cv_full$lambda.min)
+
+# Prepare prediction data
+df_predict <- df %>%
+  filter(!is.na(Section_Group), !is.na(City)) %>%
+  mutate(pred_row_id = row_id) %>%
+  mutate(
+    City = factor(City, levels = all_levels_city),
+    Section_Group = factor(Section_Group, levels = all_levels_sectiongroup)
+  )
+X_new <- model.matrix(~ Section_Group + City, data = df_predict)[, -1]
+
+# Predict expected log price, exponentiate, clamp at $10
+log_pred <- as.numeric(predict(lasso_fit_full, newx = X_new))
+df_predict$ExpectedPrice_reg <- pmax(exp(log_pred), 10)
+df_predict$ExpectedPrice_reg <- round(df_predict$ExpectedPrice_reg, 2)
+
+# Merge predictions back to full df
+df <- left_join(df, df_predict %>% select(pred_row_id, ExpectedPrice_reg), by = c("row_id" = "pred_row_id"))
+
+# ========== Deal Score Calculation ==========
+df <- df %>%
+  group_by(City, Section_Group, EventDate) %>%
+  mutate(
+    Lowest_Price = min(ActualPrice, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    Deal_Score_Reg = (ExpectedPrice_reg - ActualPrice) / ExpectedPrice_reg,
+    Deal_Score_Reg = pmax(pmin(Deal_Score_Reg, 1), 0)
+  )
+
+# ========== Section Quality ==========
+section_scores <- df %>%
+  group_by(Section_Group) %>%
+  summarize(
+    Median_ExpectedPrice = median(ExpectedPrice_reg, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  mutate(
+    Seat_Quality_Score = percent_rank(Median_ExpectedPrice)
+  )
+
+df <- left_join(df, section_scores %>% select(Section_Group, Seat_Quality_Score), by = "Section_Group")
+
+# ========== Final Deal Score: Geometric Mean ==========
+df <- df %>%
+  mutate(
+    Final_Deal_Score = (sqrt(Deal_Score_Reg * Seat_Quality_Score)) * 100
+  )
+
+# ========== Output ==========
+best_deals <- df %>%
+  arrange(desc(Final_Deal_Score)) %>%
+  select(
+    Final_Deal_Score, Deal_Score_Reg, Seat_Quality_Score, ActualPrice, ExpectedPrice_reg,
+    Section, Section_Group, StandardZone, City, PriceDate, EventDate, DaysBeforeEventDate
+  )
+
+print(head(best_deals, 30))
+```
+
+
+```{r}
+write.csv(df, "/Users/.../renaissancecleaned.csv", row.names = FALSE)
+```
+
+
+```{r}
+print(df)
+```
+
+
+```{r}
+# ========== Preparing CSV for EDA ==========
+# Read cleaned and prepared CSV
+df <- read.csv("/Users/mercyeme/Documents/STATS 404/beyonce csv files renaissance/renaissance/renaissancecleaned.csv")
+
+# Set the new column order
+new_order <- c(
+  "FileName", "City", "EventDate", "PriceDate", "PriceTime", "DaysBeforeEventDate",
+  "Zone", "Section", "Row", "Qty",
+  "StandardZone", "Section_Group", "Section_Num",
+  "ActualPrice", "Lowest_Price", "ExpectedPrice_reg",
+  "Deal_Score_Reg", "Seat_Quality_Score", "Final_Deal_Score"
+)
+
+# Reorder columns
+df <- df[, new_order]
+
+# Write to new CSV
+write.csv(df, "/Users/mercyeme/Documents/STATS 404/beyonce csv files renaissance/renaissance/renaissancecleaned_fix.csv", row.names = FALSE)
+
+```
+
+
+```{r}
+print(df)
+```
+
+
+```{r}
+# Extract Lasso coefficients as a sparse matrix
+lasso_coefs <- coef(lasso_fit_full)
+
+# Convert to a regular matrix and then to a data frame
+lasso_coefs_df <- as.data.frame(as.matrix(lasso_coefs))
+colnames(lasso_coefs_df) <- "Estimate"
+lasso_coefs_df$Variable <- rownames(lasso_coefs_df)
+
+# Filter for nonzero coefficients
+lasso_nonzero <- lasso_coefs_df %>%
+  filter(Estimate != 0) %>%
+  arrange(desc(abs(Estimate)))
+
+print(lasso_nonzero)
+```
+
+
+```{r}
+# ========== EDA ==========
+library(ggplot2)
+library(mgcv)
+library(scales)  # For label_percent()
+# Calculate median deal score for each Section_Group
+medians <- df %>%
+  group_by(Section_Group) %>%
+  summarise(med_deal = median(Final_Deal_Score, na.rm = TRUE))
+
+# Plot with median lines
+ggplot(df, aes(x = DaysBeforeEventDate, y = Final_Deal_Score, color = Section_Group)) +
+  geom_point(alpha = 0.2, size = 1) +
+  geom_smooth(method = "loess", se = TRUE, linewidth = 1.1, alpha = 0.40) +
+  scale_x_reverse() +
+  facet_wrap(~ Section_Group, scales = "fixed") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  # Add median lines per facet
+  geom_hline(data = medians, aes(yintercept = med_deal), 
+             color = "darkred", linetype = "dotted", linewidth = 1) +
+  labs(
+    title = "Deal Score Trend Over Time for Each Section Group",
+    subtitle = "LOESS smooth with confidence bands\nDotted red line = Median Deal Score for Section",
+    x = "Days Before Event",
+    y = "Final Deal Score",
+    color = "Section Group"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(size = 17, face = "bold"),
+    plot.subtitle = element_text(size = 13),
+    strip.text = element_text(size = 12, face = "bold"),
+    legend.position = "none"
+  )
+```
+
+
+```{r}
+ggplot(df, aes(x = DaysBeforeEventDate, y = Final_Deal_Score, color = Section_Group)) +
+  geom_smooth(method = "loess", se = FALSE, size = 1.1) +
+  scale_x_reverse() +
+  labs(
+    title = "Deal Score Trend Over Time for All Sections",
+    subtitle = "Higher scores = better value",
+    x = "Days Before Event",
+    y = "Final Deal Score",
+    color = "Section Group"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(size = 17, face = "bold"),
+    plot.subtitle = element_text(size = 13),
+    legend.title = element_text(size = 13),
+    legend.text = element_text(size = 11)
+  )
+```
+
+
+```{r}
+# Fit the GAM as before
+gam_gooddeal <- gam(GoodDeal ~ s(DaysBeforeEventDate), data = df, family = binomial)
+
+# Create a prediction dataframe
+newdat <- data.frame(
+  DaysBeforeEventDate = seq(min(df$DaysBeforeEventDate, na.rm=TRUE),
+                            max(df$DaysBeforeEventDate, na.rm=TRUE),
+                            length.out = 200)
+)
+# Predict on the link scale and get standard errors
+preds <- predict(gam_gooddeal, newdata = newdat, type = "link", se.fit = TRUE)
+# Convert to probability and compute confidence intervals
+newdat$pred <- plogis(preds$fit)
+newdat$lower <- plogis(preds$fit - 1.96 * preds$se.fit)
+newdat$upper <- plogis(preds$fit + 1.96 * preds$se.fit)
+
+# Plot with y-axis as percentage
+ggplot(newdat, aes(x = DaysBeforeEventDate, y = pred)) +
+  geom_line(size = 1.3, color = "purple") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.20, fill = "purple") +
+  scale_x_reverse() +
+  scale_y_continuous(labels = label_percent(accuracy = 1), limits = c(0, 1)) +
+  labs(
+    title = "Probability of Getting a Good Deal vs. Days Before Event",
+    subtitle = "GAM (logistic regression); good deal = top 20% of scores",
+    x = "Days Before Event",
+    y = "Probability of Good Deal (%)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(size = 17, face = "bold"),
+    plot.subtitle = element_text(size = 13),
+    legend.title = element_text(size = 13),
+    legend.text = element_text(size = 11)
+  )
+```
+
+
+```{r}
+# Create GoodDeal variable using dplyr::ntile for exact top 20%
+df <- df %>%
+  mutate(
+    GoodDeal = as.integer(ntile(Final_Deal_Score, 100) >= 80)  # top 20%
+  )
+table(df$GoodDeal)  # Should show about 20% 1's
+
+# Fit the GAM
+gam_gooddeal <- gam(GoodDeal ~ s(DaysBeforeEventDate), data = df, family = binomial)
+summary(gam_gooddeal)
+
+# New data for prediction
+newdat <- data.frame(
+  DaysBeforeEventDate = seq(min(df$DaysBeforeEventDate, na.rm=TRUE),
+                            max(df$DaysBeforeEventDate, na.rm=TRUE),
+                            length.out = 200)
+)
+
+# Predict with confidence intervals
+preds <- predict(gam_gooddeal, newdata = newdat, type = "link", se.fit = TRUE)
+newdat$pred <- plogis(preds$fit)
+newdat$lower <- plogis(preds$fit - 1.96 * preds$se.fit)
+newdat$upper <- plogis(preds$fit + 1.96 * preds$se.fit)
+
+# Plot, y-axis in percent
+ggplot(newdat, aes(x = DaysBeforeEventDate, y = pred)) +
+  geom_line(size = 1.3, color = "purple") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.20, fill = "purple") +
+  scale_x_reverse() +
+  scale_y_continuous(labels = label_percent(accuracy = 1), limits = c(0, 1)) +
+  labs(
+    title = "Probability of Getting a Good Deal vs. Days Before Event",
+    subtitle = "GAM (logistic regression); good deal = top 20% of scores",
+    x = "Days Before Event",
+    y = "Probability of Good Deal (%)"
+  ) +
+  theme_minimal(base_size = 14)
+```
+
+
+```{r}
+df <- df %>%
+  mutate(
+    GoodDeal_ntile = as.integer(ntile(Final_Deal_Score, 100) >= 80)
+  )
+table(df$GoodDeal_ntile)
+gam_secgroup <- gam(
+  GoodDeal_ntile ~ s(DaysBeforeEventDate) + Section_Group,
+  data = df,
+  family = binomial
+)
+# Create a prediction grid for each Section_Group at a representative DaysBeforeEventDate
+newdat <- expand.grid(
+  DaysBeforeEventDate = median(df$DaysBeforeEventDate, na.rm = TRUE),
+  Section_Group = unique(df$Section_Group)
+)
+
+preds <- predict(gam_secgroup, newdata = newdat, type = "link", se.fit = TRUE)
+newdat$pred <- plogis(preds$fit)
+newdat$lower <- plogis(preds$fit - 1.96 * preds$se.fit)
+newdat$upper <- plogis(preds$fit + 1.96 * preds$se.fit)
+
+
+ggplot(newdat, aes(x = reorder(Section_Group, pred), y = pred)) +
+  geom_col(fill = "steelblue") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  scale_y_continuous(labels = label_percent(accuracy = 1), limits = c(0, 1)) +
+  labs(
+    title = "Estimated Probability of Good Deal by Section Group",
+    subtitle = "Controlling for Days Before Event (median value)",
+    x = "Section Group",
+    y = "Probability of Good Deal (%)"
+  ) +
+  coord_flip() +
+  theme_minimal(base_size = 14)
+```
+
+
+```{r}
+install.packages("lubridate")
+library(lubridate)
+
+# Parse time and extract hour (returns 0–23 as intended)
+df$Hour <- hour(parse_date_time(df$PriceTime, orders = "I:M p"))
+gam_tod <- gam(
+  GoodDeal ~ s(DaysBeforeEventDate) + s(Hour, bs = "cc"),
+  data = df,
+  family = binomial
+)
+summary(gam_tod)
+# Prediction grid for hour (0 to 23)
+hour_grid <- data.frame(
+  DaysBeforeEventDate = median(df$DaysBeforeEventDate, na.rm = TRUE),
+  Hour = seq(0, 23, by = 0.25)
+)
+
+preds <- predict(gam_tod, newdata = hour_grid, type = "link", se.fit = TRUE)
+hour_grid$pred <- plogis(preds$fit)
+hour_grid$lower <- plogis(preds$fit - 1.96 * preds$se.fit)
+hour_grid$upper <- plogis(preds$fit + 1.96 * preds$se.fit)
+
+ggplot(hour_grid, aes(x = Hour, y = pred)) +
+  geom_line(size = 1.2, color = "blue") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.15, fill = "blue") +
+  scale_x_continuous(breaks = 0:23) +
+  scale_y_continuous(labels = label_percent(accuracy = 1), limits = c(0, 1)) +
+  labs(
+    title = "Probability of Getting a Good Deal by Time of Day",
+    subtitle = "Controlling for Days Before Event (at median value)",
+    x = "Hour of Day (Ticket Purchased)",
+    y = "Probability of Good Deal (%)"
+  ) +
+  theme_minimal(base_size = 14)
+```
+
+
+```{r}
+glm_fit <- glm(GoodDeal ~ Section_Group + DaysBeforeEventDate, data=df, family=binomial)
+summary(glm_fit)
+```
+
+
+```{r}
+# Convert ActualPrice and Final_Deal_Score to numeric
+df$ActualPrice <- as.numeric(as.character(df$ActualPrice))
+df$Final_Deal_Score <- as.numeric(as.character(df$Final_Deal_Score))
+
+# Check for NAs if necessary
+# sum(is.na(df$ActualPrice))
+
+# Market size
+big_cities <- c("New York City", "Los Angeles", "Chicago", "Atlanta", "Houston", 
+                "Miami", "Philadelphia", "Toronto", "Vegas")
+medium_cities <- c("Dallas", "Boston", "Detroit", "Minneapolis", "Nashville", 
+                   "Seattle", "Washington DC", "Vancouver", "San Jose", "Phoenix")
+df$MarketSize <- "Small"
+df$MarketSize[df$City %in% big_cities] <- "Big"
+df$MarketSize[df$City %in% medium_cities] <- "Medium"
+
+# Binning
+breaks <- quantile(df$ActualPrice, probs = c(0, 1/3, 2/3, 1), na.rm = TRUE)
+df$PriceLevel <- cut(df$ActualPrice, breaks = breaks, labels = c("Low", "Medium", "High"), include.lowest = TRUE)
+score_threshold <- quantile(df$Final_Deal_Score, 0.8, na.rm = TRUE)
+df$GoodDeal <- as.integer(df$Final_Deal_Score >= score_threshold)
+
+# Plot
+ggplot(df, aes(x = ActualPrice, color = MarketSize, fill = MarketSize)) +
+  geom_density(alpha = 0.2) +
+  facet_wrap(~ PriceLevel, scales = "free_x") +
+  scale_x_log10() +
+  labs(
+    title = "Ticket Price Density by Market Size and Price Level (Log10 Scale)",
+    x = "Actual Price (log10)",
+    y = "Density"
+  ) +
+  theme_minimal()
+```
+
+
+
+
+
+```{r}
+ggplot(df, aes(x = ActualPrice, color = MarketSize, fill = MarketSize)) +
+  geom_density(alpha = 0.2) +
+  facet_wrap(~ PriceLevel, scales = "free_x") +
+  labs(
+    title = "Ticket Price Density by Market Size and Price Level",
+    x = "Actual Price",
+    y = "Density"
+  ) +
+  theme_minimal()
+```
+
+
+
+
+```{r}
+levels_to_plot <- unique(df$PriceLevel)
+for (level in levels_to_plot) {
+  p <- ggplot(df[df$PriceLevel == level, ], aes(x = ActualPrice, color = MarketSize, fill = MarketSize)) +
+    geom_density(alpha = 0.2) +
+    labs(
+      title = paste("Ticket Price Density: Market Size (", level, " Price Level)", sep = ""),
+      x = "Actual Price", y = "Density"
+    ) +
+    theme_minimal()
+  print(p)
+}
+```
+
+
+```{r}
+# (optional, but could be necessary: Ensure numeric columns)
+df$ActualPrice <- as.numeric(as.character(df$ActualPrice))
+df$Final_Deal_Score <- as.numeric(as.character(df$Final_Deal_Score))
+
+# Density plot: all data, log-scaled x, market size color
+ggplot(df, aes(x = ActualPrice, color = MarketSize, fill = MarketSize)) +
+  geom_density(alpha = 0.2) +
+  scale_x_log10() +
+  labs(
+    title = "Ticket Price Density by Market Size (Log10 Scale)",
+    x = "Actual Price (log10)",
+    y = "Density",
+    caption = "Note: X-axis is log-scaled to show the full range of prices, including outliers."
+  ) +
+  theme_minimal() +
+  theme(
+    plot.caption = element_text(hjust = 0.5, face = "italic", size = 10)
+  )
+```
+
+
+```{r}
+# (again, optional safety: ensure numeric columns)
+df$ActualPrice <- as.numeric(as.character(df$ActualPrice))
+df$Final_Deal_Score <- as.numeric(as.character(df$Final_Deal_Score))
+
+# Density plot: all data, linear x-axis, market size color
+ggplot(df, aes(x = ActualPrice, color = MarketSize, fill = MarketSize)) +
+  geom_density(alpha = 0.2) +
+  labs(
+    title = "Ticket Price Density by Market Size (Full Range, Linear Scale)",
+    x = "Actual Price",
+    y = "Density",
+    caption = "The full range of prices (including outliers) is shown. Extreme values may compress most data to the left."
+  ) +
+  theme_minimal() +
+  theme(
+    plot.caption = element_text(hjust = 0.5, face = "italic", size = 10)
+  )
+```
+
+
+```{r}
+# Check structure and summary
+str(df)
+summary(df)
+```
+
+
+```{r}
+ggplot(df, aes(x = ActualPrice, fill = MarketSize, color = MarketSize)) +
+  geom_density(alpha = 0.3) +
+  scale_x_log10() +
+  labs(
+    title = "Ticket Price Distribution by Market Size (log scale)",
+    x = "Actual Price (log10)",
+    y = "Density"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.caption = element_text(hjust = 0.5, face = "italic", size = 10)
+  )
+```
+
+```{r}
+ggplot(df, aes(x = reorder(Section_Group, ActualPrice, median), y = ActualPrice, fill = Section_Group)) +
+  geom_boxplot(outlier.alpha = 0.2, alpha = 0.8, show.legend = FALSE) +
+  scale_y_log10() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Paired") +
+  labs(title = "Ticket Price by Section Group",
+       x = "Section Group",
+       y = "Actual Price (log10)") +
+  theme_minimal()
+```
+
+
+```{r}
+ggplot(df, aes(x = DaysBeforeEventDate)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "white") +
+  labs(title = "Distribution of Purchase Timing",
+       x = "Days Before Event",
+       y = "Count")
+```
+
+```{r}
+ggplot(df, aes(x = DaysBeforeEventDate, y = ActualPrice, color = MarketSize)) +
+  geom_point(alpha = 0.05, size = 1) +
+  geom_smooth(se = FALSE, method = "loess", size = 1.2) +
+  scale_y_log10() +
+  labs(title = "Ticket Price vs. Days Before Event (with trend)",
+       x = "Days Before Event", y = "Actual Price (log10)")
+```
+
+
+```{r}
+ggplot(df, aes(x = DaysBeforeEventDate)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "white") +
+  scale_x_reverse() +
+  labs(title = "Distribution of Purchase Timing",
+       x = "Days Before Event",
+       y = "Count")
+```
+
+
+```{r}
+ggplot(df, aes(x = DaysBeforeEventDate, y = ActualPrice, color = MarketSize)) +
+  geom_point(alpha = 0.05, size = 1) +
+  geom_smooth(se = FALSE, method = "loess", size = 1.2) +
+  scale_y_log10() +
+  scale_x_reverse() +
+  labs(title = "Ticket Price vs. Days Before Event (with trend)",
+       x = "Days Before Event",
+       y = "Actual Price (log10)")
+```
+
+
+```{r}
+ggplot(df, aes(x = DaysBeforeEventDate, y = ActualPrice)) +
+  geom_point(alpha = 0.1, size = 1, color = "steelblue") +
+  geom_smooth(method = "loess", se = FALSE, color = "black") +
+  scale_y_log10() +
+  scale_x_reverse() +
+  facet_wrap(~ MarketSize) +
+  labs(title = "Ticket Price vs. Days Before Event by Market Size",
+       x = "Days Before Event", y = "Actual Price (log10)")
+```
+
+
+```{r}
+ggplot(df, aes(x = MarketSize, fill = factor(GoodDeal, levels = c(0, 1), labels = c("No", "Yes")))) +
+  geom_bar(position = "fill") +
+  labs(title = "Proportion of Good Deals by Market Size",
+       x = "Market Size",
+       y = "Proportion",
+       fill = "Good Deal")
+```
+
+
+```{r}
+# ========== Predictive Modeling ==========
+# Make new data for prediction
+newdata <- data.frame(
+  MarketSize = "Big",
+  Section_Group = "100s",
+  DaysBeforeEventDate = seq(0, 250, by = 1)
+)
+
+# Predict with standard errors
+pred <- predict(model, newdata, type = "link", se.fit = TRUE)
+
+# 95% CI on link (logit) scale
+fit <- pred$fit
+se <- pred$se.fit
+ci_lower <- fit - 1.96 * se
+ci_upper <- fit + 1.96 * se
+
+# Convert to probability scale
+prob_fit <- plogis(fit)
+prob_lower <- plogis(ci_lower)
+prob_upper <- plogis(ci_upper)
+
+# Combine with newdata
+result <- cbind(newdata, prob_fit, prob_lower, prob_upper)
+head(result)
+```
+
+
+```{r}
+install.packages("GGally")
+library(GGally)
+GGally::ggpairs(df[, c("ActualPrice", "DaysBeforeEventDate", "Section_Group")])
+```
+
+```{r}
+# Fit logistic regression model
+model1 <- glm(GoodDeal ~ MarketSize + Section_Group + DaysBeforeEventDate, 
+              data = df, family = binomial)
+summary(model1)
+```
+
+
+```{r}
+df$GoodDealProb <- predict(model1, type = "response")
+```
+
+
+```{r}
+ggplot(df, aes(x = DaysBeforeEventDate, y = GoodDealProb, color = Section_Group)) +
+  geom_point(alpha = 0.1, size = 2) +
+  geom_smooth(se = FALSE, size = 1.2) +
+  scale_color_brewer(palette = "Paired") +
+  scale_x_reverse() +
+  labs(
+    title = "Predicted Probability of Good Deal vs. Days Before Event",
+    x = "Days Before Event",
+    y = "Predicted Probability of Good Deal",
+    color = "Section Group"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 11),
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )
+```
+
+
+```{r}
+ggplot(df, aes(x = DaysBeforeEventDate, y = GoodDealProb, color = Section_Group)) +
+  geom_point(alpha = 0.5, size = 1) +
+  geom_smooth(se = FALSE, size = 1, color = "black") +
+  scale_x_reverse() +
+  facet_wrap(~ Section_Group, ncol = 4) +
+  labs(
+    title = "Predicted Probability of Good Deal vs. Days Before Event by Section Group",
+    x = "Days Before Event",
+    y = "Predicted Probability of Good Deal"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    strip.text = element_text(face = "bold", size = 12),
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )
+```
+
+
+```{r}
+# Full model: all predictors
+model_full <- glm(GoodDeal ~ MarketSize + Section_Group + DaysBeforeEventDate, data = df, family = binomial)
+
+# Remove MarketSize
+model_no_market <- glm(GoodDeal ~ Section_Group + DaysBeforeEventDate, data = df, family = binomial)
+
+# Remove SectionGroup
+model_no_section <- glm(GoodDeal ~ MarketSize + DaysBeforeEventDate, data = df, family = binomial)
+
+# Only DaysBeforeEvent
+model_timing <- glm(GoodDeal ~ DaysBeforeEventDate, data = df, family = binomial)
+```
+
+
+
+```{r}
+# Compare AIC (lower is better)
+AIC(model_full, model_no_market, model_no_section, model_timing)
+
+# compare accuracy
+predict_and_acc <- function(model) {
+  pred <- predict(model, type = "response") > 0.5
+  mean(pred == df$GoodDeal)
+}
+
+acc_full      <- predict_and_acc(model_full)
+acc_no_market <- predict_and_acc(model_no_market)
+acc_no_section<- predict_and_acc(model_no_section)
+acc_timing    <- predict_and_acc(model_timing)
+
+data.frame(
+  model = c("Full", "No Market", "No Section", "Timing Only"),
+  accuracy = c(acc_full, acc_no_market, acc_no_section, acc_timing)
+)
+```
+
+
+```{r}
+# Fit GLM models
+model_full       <- glm(GoodDeal ~ MarketSize + Section_Group + DaysBeforeEventDate, data = df, family = binomial)
+model_no_market  <- glm(GoodDeal ~ Section_Group + DaysBeforeEventDate, data = df, family = binomial)
+model_no_section <- glm(GoodDeal ~ MarketSize + DaysBeforeEventDate, data = df, family = binomial)
+model_timing     <- glm(GoodDeal ~ DaysBeforeEventDate, data = df, family = binomial)
+
+# Fit GAM model
+model_gam <- gam(GoodDeal ~ MarketSize + Section_Group + s(DaysBeforeEventDate), data = df, family = binomial)
+
+# Compare AIC
+aic_results <- AIC(model_gam, model_full, model_no_market, model_no_section, model_timing)
+aic_results$model <- rownames(aic_results)
+aic_results <- aic_results[, c("model", "AIC")]
+
+# Define accuracy function
+predict_and_acc <- function(model) {
+  pred <- predict(model, type = "response") > 0.5
+  mean(pred == df$GoodDeal)
+}
+
+# Calculate accuracy for each model
+acc_gam        <- predict_and_acc(model_gam)
+acc_full       <- predict_and_acc(model_full)
+acc_no_market  <- predict_and_acc(model_no_market)
+acc_no_section <- predict_and_acc(model_no_section)
+acc_timing     <- predict_and_acc(model_timing)
+
+acc_results <- data.frame(
+  model    = c("model_gam", "model_full", "model_no_market", "model_no_section", "model_timing"),
+  accuracy = c(acc_gam, acc_full, acc_no_market, acc_no_section, acc_timing)
+)
+
+# Print AIC and accuracy tables
+print(aic_results)
+print(acc_results)
+```
+
+
+```{r}
+df$DealValue <- df$ExpectedPrice_reg - df$ActualPrice
+df$DealPct <- (df$ActualPrice / df$ExpectedPrice_reg) # < 1: paid less than expected
+aggregate(DealValue ~ MarketSize, data = df, mean)
+aggregate(DealValue ~ Section_Group, data = df, mean)
+ggplot(df, aes(x = Section_Group, y = ActualPrice / ExpectedPrice_reg, fill = Section_Group)) +
+  geom_boxplot(show.legend = FALSE) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  coord_flip() +
+  labs(title = "Actual vs. Expected Price by Section",
+       y = "Actual / Expected Price",
+       x = "Section Group")
+ggplot(df, aes(x = ExpectedPrice_reg, y = ActualPrice, color = GoodDeal)) +
+  geom_point(alpha = 0.7) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Actual vs. Expected Price",
+       x = "Expected Price",
+       y = "Actual Price")
+```
+
+
+```{r}
+model_gam <- gam(GoodDeal ~ MarketSize + Section_Group + s(DaysBeforeEventDate),
+                 data = df, family = binomial)
+summary(model_gam)
+confint.default(model_gam, level = 0.95)
+```
+
+
+```{r}
+plot(model_gam, shade = TRUE, main = "Smooth Effect of Days Before Event on Good Deal Probability")
+```
+
+
+```{r}
+# Deviance residuals for logistic regression
+model2 <- glm(GoodDeal ~ Section_Group + DaysBeforeEventDate, data = df, family = binomial)
+residuals1 <- residuals(model2, type = "deviance")
+
+# Plot residuals vs. fitted values
+plot(fitted(model2), residuals1,
+     xlab = "Fitted Probability", ylab = "Deviance Residual",
+     main = "Residuals vs Fitted (Logistic Regression)")
+abline(h = 0, col = "red")
+```
+
+
+```{r}
+resid_gam <- residuals(model_gam, type = "deviance")
+plot(fitted(model_gam), resid_gam,
+     xlab = "Fitted Probability", ylab = "Deviance Residual",
+     main = "Residuals vs Fitted (GAM)")
+abline(h = 0, col = "red")
+```
+
+
+```{r}
+library(pROC)
+prob_full <- predict(model2, type = "response")
+roc_obj <- roc(df$GoodDeal, prob_full)
+plot(roc_obj, main = "ROC Curve: Logistic Regression")
+auc(roc_obj)
+```
+
+
+```{r}
+library(ResourceSelection)
+hoslem.test(df$GoodDeal, prob_full)
+```
+
+
+```{r}
+write.csv(df, "/Users/.../renaissancecleaned_final.csv", row.names = FALSE) # final check to ensure data is formatted properly
+```
+
+
+
+```{r}
+# ========== Extras: EDA ==========
+
+# Example with categorical variables
+df$MarketSize <- factor(df$MarketSize, levels = c("Big", "Medium", "Small"))
+df$Section_Group <- factor(df$Section_Group)
+
+# One-hot encode categorical variables
+X <- model.matrix(~ DaysBeforeEventDate + MarketSize + Section_Group, data = df)[, -1]
+
+# Correlation matrix
+cor(X)
+corrplot(cor(X), method = "color")
+```
+
+
+
+```{r}
+install.packages("corrplot")
+library(corrplot)
+corrplot(cor(X), method = "color")
+```
+
+
+```{r}
+# Suppose your dataframe is 'tickets'
+# 1. One-hot encode categorical variables
+X <- model.matrix(~ DaysBeforeEventDate + MarketSize + Section_Group, data = tickets)[, -1]
+
+# 2. Add GoodDeal column (assuming it's 0/1)
+X <- cbind(X, GoodDeal = tickets$GoodDeal)
+
+# 3. Compute and visualize correlation matrix
+library(corrplot)
+M <- cor(X)
+corrplot(M, method = "color", tl.cex = 0.7)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
