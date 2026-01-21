@@ -276,7 +276,7 @@ print(df)
 ```{r}
 # ========== Preparing CSV for EDA ==========
 # Read cleaned and prepared CSV
-df <- read.csv("/Users/mercyeme/Documents/STATS 404/beyonce csv files renaissance/renaissance/renaissancecleaned.csv")
+df <- read.csv("/Users/.../Documents/.../beyonce csv files renaissance/renaissance/renaissancecleaned.csv")
 
 # Set the new column order
 new_order <- c(
@@ -291,7 +291,7 @@ new_order <- c(
 df <- df[, new_order]
 
 # Write to new CSV
-write.csv(df, "/Users/mercyeme/Documents/STATS 404/beyonce csv files renaissance/renaissance/renaissancecleaned_fix.csv", row.names = FALSE)
+write.csv(df, "/Users/.../Documents/.../beyonce csv files renaissance/renaissance/renaissancecleaned_fix.csv", row.names = FALSE)
 
 ```
 
