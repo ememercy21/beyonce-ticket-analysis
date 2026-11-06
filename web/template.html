@@ -1,0 +1,568 @@
+<title>The Beyconomics of Ticket Buying</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; the chart and its controls lead, the checker and show ranking follow, method last. */
+:root {
+  --bg: #f3f4f7;        /* cool silver paper */
+  --surface: #ffffff;
+  --ink: #15161d;
+  --ink-2: #474a59;
+  --muted: #6f7386;
+  --rule: #dcdfe7;
+  --grid: #eceef3;
+  --honey: #9a6200;     /* model line + accent */
+  --honey-soft: #f2e2bf;/* model range band */
+  --dot: #a2a7b9;       /* actual sales */
+  --cheap: #2a78d6;     /* show cheaper than typical */
+  --pricey: #d4622f;    /* show pricier than typical */
+  --good: #1d7f46;
+  --flat: #6f7386;
+  --bad: #b4501a;
+  --focus: #2a78d6;
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101117; --surface: #191a22; --ink: #eef0f6; --ink-2: #b8bccb; --muted: #8a8fa3;
+    --rule: #2b2d39; --grid: #22242e; --honey: #f0b540; --honey-soft: #47381a; --dot: #5c6175;
+    --cheap: #3987e5; --pricey: #d95926; --good: #4cc27e; --flat: #8a8fa3; --bad: #e58a52; --focus: #6aa8f0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101117; --surface: #191a22; --ink: #eef0f6; --ink-2: #b8bccb; --muted: #8a8fa3;
+  --rule: #2b2d39; --grid: #22242e; --honey: #f0b540; --honey-soft: #47381a; --dot: #5c6175;
+  --cheap: #3987e5; --pricey: #d95926; --good: #4cc27e; --flat: #8a8fa3; --bad: #e58a52; --focus: #6aa8f0;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1040px; margin: 0 auto; padding-block: 40px 64px; display: grid; gap: 48px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+/* Header */
+header { display: grid; gap: 14px; max-width: 760px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(30px, 5.4vw, 52px); line-height: 1.04; letter-spacing: -.01em; }
+.deck { font-size: 19px; color: var(--ink-2); max-width: 62ch; }
+.deck strong { color: var(--ink); font-weight: 600; }
+
+/* Section heads */
+.sec { display: grid; gap: 18px; }
+.sec-head { display: grid; gap: 6px; max-width: 68ch; }
+h2 { font-family: var(--display); font-weight: 500; font-size: clamp(20px, 3vw, 26px); line-height: 1.2; }
+.sec-head p { color: var(--ink-2); }
+
+/* Controls */
+.controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; }
+.field { display: grid; gap: 6px; min-width: 0; }
+.field > label, .field > .label { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+select, input[type="number"] {
+  font: inherit; font-size: 15px; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; min-height: 40px; max-width: 100%;
+}
+input[type="number"] { width: 100%; font-family: var(--mono); }
+select:focus-visible, input:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.seg { display: flex; flex-wrap: wrap; gap: 4px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 3px; }
+.seg button {
+  font: inherit; font-size: 14px; font-weight: 500; color: var(--ink-2); background: transparent; border: 0;
+  border-radius: 5px; padding: 6px 12px; cursor: pointer; min-height: 34px;
+}
+.seg button:hover { color: var(--ink); background: var(--grid); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+/* Chart panel */
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 20px; display: grid; gap: 16px; min-width: 0; }
+.chart-title { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; align-items: baseline; }
+.chart-title h3 { font-size: 17px; font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw-line { width: 18px; height: 2px; background: var(--honey); border-radius: 1px; }
+.sw-band { width: 18px; height: 10px; background: var(--honey-soft); border-radius: 2px; }
+.sw-dot { width: 7px; height: 7px; background: var(--dot); border-radius: 50%; }
+.chart-box { position: relative; min-width: 0; }
+.chart-box svg { display: block; width: 100%; height: auto; overflow: visible; }
+.axis text { fill: var(--muted); font-family: var(--mono); font-size: 11px; }
+.axis line { stroke: var(--grid); }
+.axis .base { stroke: var(--rule); }
+.axis-label { fill: var(--muted); font-size: 12px; font-family: var(--body); }
+.note { font-size: 13px; color: var(--muted); }
+
+.tip {
+  position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 13px; line-height: 1.4;
+  padding: 8px 10px; border-radius: 6px; min-width: 170px; max-width: 240px; z-index: 2; transform: translate(-50%, calc(-100% - 12px));
+}
+.tip b { font-weight: 600; }
+.tip .num { font-size: 12.5px; }
+
+/* Stats strip */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.stat { background: var(--surface); padding: 12px 14px; display: grid; gap: 2px; align-content: start; }
+.stat .k { font-size: 12px; color: var(--muted); }
+.stat .v { font-family: var(--mono); font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.stat .d { font-size: 13px; color: var(--ink-2); font-family: var(--mono); }
+
+/* Tier table */
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+td.num, th.num { text-align: right; }
+tr.sel td { font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 2px 9px; border-radius: 99px; border: 1px solid currentColor; white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill.good { color: var(--good); } .pill.flat { color: var(--flat); } .pill.bad { color: var(--bad); }
+
+/* Checker */
+.checker { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
+.inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; align-content: start; }
+.inputs .wide { grid-column: 1 / -1; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--ink-2); }
+.result { display: grid; gap: 14px; align-content: start; border-left: 1px solid var(--rule); padding-left: 24px; }
+.score-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.score { font-family: var(--display); font-size: 56px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.verdict { font-size: 18px; font-weight: 600; }
+.meter { position: relative; height: 10px; border-radius: 99px; background: linear-gradient(90deg, var(--bad), var(--grid) 50%, var(--good)); }
+.meter i { position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 50%; background: var(--ink); border: 3px solid var(--surface); transform: translate(-50%, -50%); }
+.meter-scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 15px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.example { font-size: 12px; color: var(--muted); border: 1px dashed var(--rule); border-radius: 99px; padding: 2px 10px; justify-self: start; }
+
+/* Premium chart */
+.bars { display: grid; gap: 2px; }
+.bar-row { display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: center; gap: 10px; background: none; border: 0; padding: 3px 4px; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 4px; min-height: 26px; }
+.bar-row:hover { background: var(--grid); }
+.bar-row[aria-pressed="true"] { background: var(--grid); }
+.bar-row[aria-pressed="true"] .bar-name { font-weight: 600; color: var(--ink); }
+.bar-name { font-size: 13.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track { position: relative; height: 16px; }
+.bar-track .zero { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--muted); }
+.bar-track .fill { position: absolute; top: 2px; height: 12px; }
+.bar-track .fill.pos { border-radius: 0 4px 4px 0; background: var(--pricey); }
+.bar-track .fill.neg { border-radius: 4px 0 0 4px; background: var(--cheap); }
+.bar-track .val { position: absolute; top: -1px; font-family: var(--mono); font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.bars-axis { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 10px; padding: 0 4px; font-size: 12px; color: var(--muted); }
+.bars-axis div:last-child { display: flex; justify-content: space-between; }
+
+/* Method */
+.method { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 40px; }
+.method div { display: grid; gap: 8px; align-content: start; }
+.method h3 { font-size: 15px; font-weight: 600; }
+.method p, .method li { color: var(--ink-2); font-size: 15px; }
+.method ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 16px; }
+
+.loading { color: var(--muted); font-size: 14px; }
+
+@media (max-width: 760px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .checker { grid-template-columns: minmax(0, 1fr); }
+  .result { border-left: 0; padding-left: 0; border-top: 1px solid var(--rule); padding-top: 20px; }
+  .method { grid-template-columns: minmax(0, 1fr); }
+  .bar-row, .bars-axis { grid-template-columns: 116px minmax(0, 1fr); }
+  .panel { padding: 14px; }
+  .wrap { padding-block: 24px 48px; gap: 40px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .meter i { transition: left .25s ease; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Renaissance World Tour · 2023 resale market</div>
+    <h1>The Beyconomics of Ticket Buying</h1>
+    <p class="deck">Across 55,813 resale sales at 29 stadium shows, the same seat sold for the most about <strong>a month before the show</strong>. Buyers who waited until show day paid <strong>15–23% less</strong> for floor, lower, club and upper seats.</p>
+  </header>
+
+  <section class="sec" aria-labelledby="when-h">
+    <div class="sec-head">
+      <h2 id="when-h">When to buy</h2>
+      <p>Pick a show and a seat tier. The line is the model's expected price for a typical sale (2 tickets, row 15) on each day before the show. Grey dots are real sales.</p>
+    </div>
+
+    <div class="controls">
+      <div class="field">
+        <label for="show-select">Show</label>
+        <select id="show-select"></select>
+      </div>
+      <div class="field">
+        <span class="label" id="tier-label">Seat tier</span>
+        <div class="seg" id="tier-seg" role="group" aria-labelledby="tier-label"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="chart-title">
+        <h3 id="chart-h">Loading sales…</h3>
+        <div class="legend" aria-hidden="true">
+          <span><i class="sw-line"></i>Expected price</span>
+          <span><i class="sw-band"></i>95% range vs. 30 days out</span>
+          <span><i class="sw-dot"></i>Actual sales</span>
+        </div>
+      </div>
+      <div class="chart-box" id="chart-box">
+        <svg id="chart" role="img" aria-labelledby="chart-h"></svg>
+        <div class="tip" id="tip" hidden></div>
+      </div>
+      <p class="note" id="chart-note">The shaded range shows how sure the model is about the change from 30 days out, from 200 refits on resampled shows.</p>
+      <div class="stats" id="stats"></div>
+    </div>
+
+    <div class="panel">
+      <div class="chart-title"><h3 id="tiers-h">Waiting from 30 days out to show day</h3></div>
+      <div class="tbl-wrap">
+        <table aria-labelledby="tiers-h">
+          <thead><tr><th>Seat tier</th><th class="num">30 days out</th><th class="num">Show day</th><th class="num">Change</th><th class="num">95% range</th><th>Verdict</th></tr></thead>
+          <tbody id="tier-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="deal-h">
+    <div class="sec-head">
+      <h2 id="deal-h">Was it a good deal?</h2>
+      <p>Enter a ticket for the show and tier picked above. The deal score compares the price with every sale in the data, after adjusting for seat, row, quantity and timing. A score of 80 means the price beat 80% of sales relative to what was expected.</p>
+    </div>
+    <div class="panel">
+      <div class="checker">
+        <form class="inputs" id="deal-form" autocomplete="off">
+          <span class="example wide" id="example-tag">Example ticket. Edit any field.</span>
+          <div class="field">
+            <label for="in-price">Price per ticket ($)</label>
+            <input type="number" id="in-price" min="1" step="1" value="700">
+          </div>
+          <div class="field">
+            <label for="in-days">Days before show</label>
+            <input type="number" id="in-days" min="0" step="1" value="10">
+          </div>
+          <div class="field">
+            <label for="in-row">Row</label>
+            <input type="number" id="in-row" min="1" max="60" step="1" value="12">
+          </div>
+          <div class="field">
+            <label for="in-qty">Tickets bought together</label>
+            <select id="in-qty"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option><option value="5+">5 or more</option></select>
+          </div>
+          <label class="check wide" for="in-norow"><input type="checkbox" id="in-norow"> Row unknown or general admission</label>
+          <div class="field wide" id="pkg-field" hidden>
+            <label for="in-pkg">VIP package</label>
+            <select id="in-pkg"></select>
+          </div>
+        </form>
+        <div class="result" aria-live="polite">
+          <div class="score-row"><span class="score" id="out-score">–</span><span class="verdict" id="out-verdict"></span></div>
+          <div>
+            <div class="meter"><i id="out-meter" style="left:50%"></i></div>
+            <div class="meter-scale"><span>Overpaid</span><span>Typical</span><span>Great deal</span></div>
+          </div>
+          <dl class="kv">
+            <dt>Expected price</dt><dd id="out-expected">–</dd>
+            <dt>You paid vs. expected</dt><dd id="out-diff">–</dd>
+            <dt>For</dt><dd id="out-for" style="font-family:var(--body)">–</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="where-h">
+    <div class="sec-head">
+      <h2 id="where-h">Where to buy</h2>
+      <p>How much more or less a comparable seat cost at each show than at a typical show, after adjusting for seat and timing. Select a show to load it in the charts above.</p>
+    </div>
+    <div class="panel">
+      <div class="bars-axis" aria-hidden="true"><div></div><div><span>Cheaper</span><span>Pricier</span></div></div>
+      <div class="bars" id="bars"></div>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="method-h">
+    <div class="sec-head"><h2 id="method-h">How this was made</h2></div>
+    <div class="method">
+      <div>
+        <h3>Data</h3>
+        <p>Resale sale records (time, section, row, quantity, price per ticket) for 29 North American stadium shows, February to October 2023. Seven of the 36 collected files were exact copies of other shows and were removed. There is no data for Philadelphia, St. Louis, Kansas City, LA Sept 2, Atlanta Aug 14 or Houston Sept 24.</p>
+      </div>
+      <div>
+        <h3>Model</h3>
+        <p>A generalized additive model of log price: seat tier, VIP package, row, quantity, weekend and multi-night features, a separate timing curve for each tier, a tour-wide calendar trend and an effect for each show. It explains 75% of the variation in price, with a median error of about $81 per ticket when predicting held-out sales.</p>
+      </div>
+      <div>
+        <h3>Reading the curves</h3>
+        <ul>
+          <li>Each day closer to a show is also a calendar day later. Tour-wide swings, like the slump in early March, appear in every show's curve.</li>
+          <li>These are completed sales, not prices one buyer could have waited for. Seats still on sale near show day may be worse seats within a tier.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Caveats</h3>
+        <ul>
+          <li>Toronto and Vancouver prices may be in Canadian dollars.</li>
+          <li>VIP covers 348 sales across four packages. Its curves are much less certain than the other tiers'.</li>
+          <li>Seat tiers are mapped from each stadium's own zone names, so a "Lower" seat is comparable across venues but not identical.</li>
+        </ul>
+      </div>
+    </div>
+    <footer id="foot">Model and data: BeyTickets project, R scripts 01–03.</footer>
+  </section>
+</div>
+
+<script id="bey-data" type="application/json">/*BEY_DATA*/</script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const fmt$ = (v) => "$" + Math.round(v).toLocaleString("en-US");
+  const fmtPct = (x) => (x >= 0 ? "+" : "−") + Math.abs(Math.round(x * 100)) + "%";
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const showLabel = (s, short) => {
+    const [y, m, d] = s.date.split("-").map(Number);
+    const wd = s.weekday.slice(0, 3);
+    return short ? `${s.city} · ${MONTHS[m-1]} ${d}` : `${s.city} · ${wd} ${MONTHS[m-1]} ${d}`;
+  };
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+
+  // Data is embedded at build time by R/04_build_page.R (no network request).
+  let D = null;
+  const state = { show: "atl_08_11_23", tier: "Floor" };
+
+  try {
+    D = JSON.parse(document.getElementById("bey-data").textContent);
+  } catch (e) {
+    console.error("Embedded data could not be read", e);
+    $("chart-h").textContent = "This copy of the page has no data. Rebuild it with R/04_build_page.R.";
+    return;
+  }
+  // init() runs at the end of this script, once every helper below is defined.
+
+  function init() {
+    const saved = store.get("bey-state");
+    if (saved) { try { const s = JSON.parse(saved); if (D.curves[s.show]) state.show = s.show; if (D.tiers.includes(s.tier)) state.tier = s.tier; } catch (e) {} }
+
+    const sel = $("show-select");
+    const byDate = [...D.shows].sort((a, b) => a.date.localeCompare(b.date));
+    sel.innerHTML = byDate.map(s => `<option value="${s.id}">${showLabel(s)}</option>`).join("");
+    sel.value = state.show;
+    sel.addEventListener("change", () => { state.show = sel.value; update(); });
+
+    $("tier-seg").innerHTML = D.tiers.map(t => `<button type="button" data-tier="${t}">${t}</button>`).join("");
+    $("tier-seg").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-tier]"); if (!b) return;
+      state.tier = b.dataset.tier; update();
+    });
+
+    $("in-pkg").innerHTML = D.vip_packages.map(p => `<option value="${p}">${p}</option>`).join("");
+    ["in-price", "in-days", "in-row", "in-qty", "in-norow", "in-pkg"].forEach(id => {
+      $(id).addEventListener("input", () => { $("example-tag").hidden = true; renderChecker(); });
+    });
+    $("deal-form").addEventListener("submit", (e) => e.preventDefault());
+
+    $("foot").textContent = `Model and data: BeyTickets project (R scripts 01–03), exported ${D.generated}. ${D.n_sales.toLocaleString("en-US")} sales.`;
+
+    let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(renderChart, 120); });
+    update();
+  }
+
+  function update() {
+    store.set("bey-state", JSON.stringify(state));
+    $("show-select").value = state.show;
+    document.querySelectorAll("#tier-seg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tier === state.tier)));
+    $("pkg-field").hidden = state.tier !== "VIP";
+    renderChart(); renderStats(); renderTierTable(); renderChecker(); renderBars();
+  }
+
+  const show = () => D.shows.find(s => s.id === state.show);
+  const curve = (sid = state.show, tier = state.tier) => D.curves[sid][tier];
+
+  // ---------- Timing chart ----------
+  function niceStep(range, target) {
+    const raw = range / target, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const n = raw / mag; return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * mag;
+  }
+
+  function renderChart() {
+    const s = show(), c = curve(), pts = (D.sales[state.show] || {})[state.tier] || [];
+    const n = c.price.length - 1;                 // days 0..n
+    const p30 = c.price[Math.min(30, n)];
+    const bandLo = c.lo.map(v => p30 * Math.exp(v)), bandHi = c.hi.map(v => p30 * Math.exp(v));
+    const ptsIn = pts.filter(p => p[0] <= n);
+
+    const box = $("chart-box"), W = Math.max(300, box.clientWidth), narrow = W < 560;
+    const H = narrow ? 280 : 360, m = { l: narrow ? 48 : 58, r: 10, t: 12, b: 40 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+
+    const sorted = ptsIn.map(p => p[1]).sort((a, b) => a - b);
+    const q97 = sorted.length ? sorted[Math.floor(0.97 * (sorted.length - 1))] : 0;
+    const yMax0 = Math.max(q97, ...bandHi, ...c.price) * 1.06;
+    const step = niceStep(yMax0, narrow ? 4 : 5), yMax = Math.ceil(yMax0 / step) * step;
+    const x = (d) => m.l + (n - d) / n * iw;
+    const y = (v) => m.t + ih - (v / yMax) * ih;
+
+    const xt = [180, 150, 120, 90, 60, 30, 14, 7, 0].filter(d => d <= n && !(narrow && (d === 14 || d === 150)));
+    let g = `<g class="axis">`;
+    for (let v = 0; v <= yMax + 1e-6; v += step) {
+      g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" class="${v === 0 ? "base" : ""}"/>`;
+      g += `<text x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end">${fmt$(v)}</text>`;
+    }
+    xt.forEach(d => { g += `<text x="${x(d)}" y="${H - m.b + 18}" text-anchor="middle">${d}</text>`; });
+    g += `<text class="axis-label" x="${m.l + iw / 2}" y="${H - 4}" text-anchor="middle">Days before show</text></g>`;
+
+    const above = ptsIn.filter(p => p[1] > yMax).length;
+    let dots = `<g fill="var(--dot)" fill-opacity="0.55">`;
+    ptsIn.forEach(p => { if (p[1] <= yMax) dots += `<circle cx="${x(p[0]).toFixed(1)}" cy="${y(p[1]).toFixed(1)}" r="2.2"/>`; });
+    dots += `</g>`;
+
+    let band = "M";
+    for (let d = n; d >= 0; d--) band += `${x(d).toFixed(1)},${y(bandHi[d]).toFixed(1)} L`;
+    for (let d = 0; d <= n; d++) band += `${x(d).toFixed(1)},${y(bandLo[d]).toFixed(1)}${d < n ? " L" : " Z"}`;
+    let line = "M";
+    for (let d = n; d >= 0; d--) line += `${x(d).toFixed(1)},${y(c.price[d]).toFixed(1)}${d > 0 ? " L" : ""}`;
+
+    const marks = [30, 0].filter(d => d <= n).map(d =>
+      `<circle cx="${x(d)}" cy="${y(c.price[d])}" r="4.5" fill="var(--honey)" stroke="var(--surface)" stroke-width="2"/>`).join("");
+
+    const svg = $("chart");
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.innerHTML = g +
+      `<path d="${band}" fill="var(--honey-soft)" fill-opacity="0.85"/>` + dots +
+      `<path d="${line}" fill="none" stroke="var(--honey)" stroke-width="2.5" stroke-linejoin="round"/>` + marks +
+      `<line id="xh" y1="${m.t}" y2="${m.t + ih}" stroke="var(--muted)" stroke-dasharray="3 3" visibility="hidden"/>` +
+      `<circle id="xh-dot" r="5" fill="var(--honey)" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>` +
+      `<rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent" id="hit"/>`;
+
+    $("chart-h").textContent = `${state.tier} seats · ${showLabel(s)}`;
+    $("chart-note").textContent = `The shaded range shows how sure the model is about the change from 30 days out, from ${D.n_boot} refits on resampled shows.` +
+      (above ? ` ${above} sale${above > 1 ? "s" : ""} above ${fmt$(yMax)} not shown.` : "") +
+      (ptsIn.length < 60 ? ` Only ${ptsIn.length} sales in this tier at this show, so the line leans on other shows.` : "");
+
+    const tip = $("tip"), xh = svg.querySelector("#xh"), xd = svg.querySelector("#xh-dot");
+    const salesByDay = {}; ptsIn.forEach(p => { salesByDay[p[0]] = (salesByDay[p[0]] || 0) + 1; });
+    const move = (ev) => {
+      const r = svg.getBoundingClientRect(), sx = (ev.clientX - r.left) * (W / r.width);
+      const d = Math.max(0, Math.min(n, Math.round(n - (sx - m.l) / iw * n)));
+      const px = x(d), py = y(c.price[d]);
+      xh.setAttribute("x1", px); xh.setAttribute("x2", px); xh.setAttribute("visibility", "visible");
+      xd.setAttribute("cx", px); xd.setAttribute("cy", py); xd.setAttribute("visibility", "visible");
+      const rel = c.price[d] / p30 - 1;
+      tip.innerHTML = `<b>${d === 0 ? "Show day" : d + " days before"}</b><br>` +
+        `<span class="num">Expected ${fmt$(c.price[d])}</span><br>` +
+        (d === 30 ? `<span class="num">Reference point</span>` :
+          `<span class="num">${fmtPct(rel)} vs. 30 days out</span><br><span class="num">range ${fmtPct(Math.exp(c.lo[d]) - 1)} to ${fmtPct(Math.exp(c.hi[d]) - 1)}</span>`) +
+        `<br><span class="num">${salesByDay[d] || 0} sale${salesByDay[d] === 1 ? "" : "s"} that day</span>`;
+      tip.hidden = false;
+      const left = Math.max(90, Math.min(r.width - 90, px * r.width / W));
+      tip.style.left = left + "px"; tip.style.top = (py * r.height / H) + "px";
+    };
+    const hit = svg.querySelector("#hit");
+    hit.addEventListener("pointermove", move);
+    hit.addEventListener("pointerdown", move);
+    hit.addEventListener("pointerleave", () => { tip.hidden = true; xh.setAttribute("visibility", "hidden"); xd.setAttribute("visibility", "hidden"); });
+  }
+
+  // ---------- Stats strip ----------
+  function renderStats() {
+    const c = curve(), n = c.price.length - 1, p30 = c.price[Math.min(30, n)];
+    let best = 0; for (let d = 0; d <= n; d++) if (c.price[d] < c.price[best]) best = d;
+    const rng = (d) => `${fmtPct(Math.exp(c.lo[d]) - 1)} to ${fmtPct(Math.exp(c.hi[d]) - 1)}`;
+    const cell = (k, v, dl) => `<div class="stat"><span class="k">${k}</span><span class="v">${v}</span><span class="d">${dl}</span></div>`;
+    $("stats").innerHTML =
+      cell("30 days out", fmt$(p30), "reference") +
+      cell("7 days out", fmt$(c.price[7]), `${fmtPct(c.price[7] / p30 - 1)} (${rng(7)})`) +
+      cell("Show day", fmt$(c.price[0]), `${fmtPct(c.price[0] / p30 - 1)} (${rng(0)})`) +
+      cell("Cheapest point", fmt$(c.price[best]), best === 0 ? "show day" : `${best} days before`);
+  }
+
+  // ---------- Tier table ----------
+  function renderTierTable() {
+    $("tiers-h").textContent = `Waiting from 30 days out to show day · ${showLabel(show(), true)}`;
+    $("tier-body").innerHTML = D.tiers.map(t => {
+      const c = curve(state.show, t), p30 = c.price[30], p0 = c.price[0];
+      const lo = Math.exp(c.lo[0]) - 1, hi = Math.exp(c.hi[0]) - 1;
+      const v = hi < 0 ? ["good", "Cheaper to wait"] : lo > 0 ? ["bad", "Pricier to wait"] : ["flat", "No clear change"];
+      return `<tr class="${t === state.tier ? "sel" : ""}"><td>${t}</td><td class="num mono">${fmt$(p30)}</td><td class="num mono">${fmt$(p0)}</td>` +
+        `<td class="num mono">${fmtPct(p0 / p30 - 1)}</td><td class="num mono">${fmtPct(lo)} to ${fmtPct(hi)}</td>` +
+        `<td><span class="pill ${v[0]}">${v[1]}</span></td></tr>`;
+    }).join("");
+  }
+
+  // ---------- Deal checker ----------
+  function scoreFor(r) {
+    const q = D.resid_quantiles, N = q.length - 1;
+    if (r <= q[0]) return 100; if (r >= q[N]) return 0;
+    let lo = 0, hi = N; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (q[mid] <= r) lo = mid; else hi = mid; }
+    const F = (lo + (r - q[lo]) / (q[hi] - q[lo])) / N;
+    return Math.round(100 * (1 - F));
+  }
+
+  function renderChecker() {
+    const c = curve(), n = c.price.length - 1;
+    const price = parseFloat($("in-price").value);
+    let days = parseInt($("in-days").value, 10);
+    const outs = ["out-score", "out-verdict", "out-expected", "out-diff"];
+    if (!(price > 0) || !(days >= 0)) {
+      outs.forEach(id => $(id).textContent = "–");
+      $("out-verdict").textContent = "Enter a price and the days before the show.";
+      return;
+    }
+    const clamped = days > n; days = Math.min(days, n);
+    const noRow = $("in-norow").checked, row = Math.max(1, Math.min(40, parseInt($("in-row").value, 10) || 15));
+    $("in-row").disabled = noRow;
+    let adj = noRow ? D.adjust.no_row : D.adjust.row[row - 1];
+    adj += D.adjust.qty[$("in-qty").value] || 0;
+    if (state.tier === "VIP") adj += D.adjust.package[$("in-pkg").value] || 0;
+    const expected = c.price[days] * Math.exp(adj);
+    const score = scoreFor(Math.log(price / expected));
+    const verdict = score >= 80 ? "Great deal" : score >= 60 ? "Good price" : score >= 40 ? "Typical price" : score >= 20 ? "Above typical" : "Overpaid";
+    $("out-score").textContent = score;
+    $("out-verdict").textContent = verdict;
+    $("out-meter").style.left = score + "%";
+    $("out-expected").textContent = fmt$(expected);
+    $("out-diff").textContent = `${fmtPct(price / expected - 1)} (${price < expected ? "−" : "+"}${fmt$(Math.abs(price - expected)).slice(0)})`;
+    const pkg = state.tier === "VIP" ? `${$("in-pkg").value}, ` : `${state.tier}, `;
+    $("out-for").textContent = `${pkg}${showLabel(show(), true)}, ${days === 0 ? "show day" : days + " days out"}${clamped ? " (earliest with data)" : ""}`;
+  }
+
+  // ---------- Show premiums ----------
+  function renderBars() {
+    const rows = [...D.shows].sort((a, b) => b.premium - a.premium);
+    const lim = Math.ceil(Math.max(...rows.map(r => Math.abs(r.premium))) / 10) * 10;
+    $("bars").innerHTML = rows.map(r => {
+      const w = Math.abs(r.premium) / lim * 40, pos = r.premium >= 0;
+      const fill = pos ? `left:50%;width:${w}%` : `left:${50 - w}%;width:${w}%`;
+      const val = pos ? `left:calc(${50 + w}% + 6px)` : `right:calc(${50 + w}% + 6px)`;
+      return `<button type="button" class="bar-row" data-show="${r.id}" aria-pressed="${r.id === state.show}" title="${showLabel(r)}: ${fmtPct(r.premium / 100)} vs. a typical show, ${r.n_sales.toLocaleString("en-US")} sales">` +
+        `<span class="bar-name">${showLabel(r, true)}</span>` +
+        `<span class="bar-track"><span class="zero"></span><span class="fill ${pos ? "pos" : "neg"}" style="${fill}"></span>` +
+        `<span class="val" style="${val}">${fmtPct(r.premium / 100)}</span></span></button>`;
+    }).join("");
+    $("bars").querySelectorAll(".bar-row").forEach(b => b.addEventListener("click", () => {
+      state.show = b.dataset.show; update();
+      document.getElementById("when-h").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    }));
+  }
+
+  try { init(); }
+  catch (e) {
+    console.error(e);
+    $("chart-h").textContent = "The chart hit an error while drawing. Details are in the browser console.";
+  }
+})();
+</script>

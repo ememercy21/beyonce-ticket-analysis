@@ -1,0 +1,37 @@
+file,city,country,event_date,status,duplicate_of,note
+toronto_07_08_23.csv,Toronto,CA,2023-07-08,keep,,
+toronto_07_09_23.csv,Toronto,CA,2023-07-09,keep,,
+philly_07_12_23.csv,Philadelphia,US,2023-07-12,drop,toronto_07_09_23.csv,Byte-identical to Toronto 7/9 (Rogers Centre zones; scrape ends 7/9). Philadelphia data missing.
+nashville_07_15_23.csv,Nashville,US,2023-07-15,keep,,Scrape ends 7/12 (3 days before show); venue not independently verified.
+louisville_07_17_23.csv,Louisville,US,2023-07-17,keep,,
+louisville_07_17_23_part2.csv,Louisville,US,2023-07-17,drop,louisville_07_17_23.csv,Byte-identical copy of the same show.
+mpls_07_20_23.csv,Minneapolis,US,2023-07-20,keep,,
+chicago_07_22_23.csv,Chicago,US,2023-07-22,keep,,
+chicago_07_23_23.csv,Chicago,US,2023-07-23,keep,,
+detroit_07_26_23.csv,Detroit,US,2023-07-26,keep,,
+jersey_07_29_23.csv,East Rutherford,US,2023-07-29,keep,,
+jersey_07_30_23.csv,East Rutherford,US,2023-07-30,keep,,
+boston_08_01_23.csv,Boston,US,2023-08-01,keep,,
+dc_08_05_23.csv,Washington DC,US,2023-08-05,keep,,
+dc_08_06_23.csv,Washington DC,US,2023-08-06,keep,,
+charlotte_08_09_23.csv,Charlotte,US,2023-08-09,keep,,
+atl_08_11_23.csv,Atlanta,US,2023-08-11,keep,,
+atl_08_12_23.csv,Atlanta,US,2023-08-12,keep,,
+atl_08_14_23.csv,Atlanta,US,2023-08-14,drop,atl_08_12_23.csv,Byte-identical to Atlanta 8/12 (scrape ends 8/12). Atlanta 8/14 data missing.
+tampa_08_16_23.csv,Tampa,US,2023-08-16,keep,,
+miami_08_18_23.csv,Miami,US,2023-08-18,keep,,
+stlouis_08_21_23.csv,St. Louis,US,2023-08-21,drop,miami_08_18_23.csv,Byte-identical to Miami 8/18 (Hard Rock Stadium zones; scrape ends 8/18). St. Louis data missing.
+phx_08_24_23.csv,Phoenix,US,2023-08-24,keep,,
+vegas_08_26_23.csv,Las Vegas,US,2023-08-26,keep,,
+vegas_08_27_23.csv,Las Vegas,US,2023-08-27,keep,,
+sf_08_30_23.csv,Santa Clara,US,2023-08-30,keep,,
+la_09_01_23.csv,Los Angeles,US,2023-09-01,keep,,
+la_09_02_23.csv,Los Angeles,US,2023-09-02,drop,la_09_01_23.csv,Byte-identical to LA 9/1 (scrape ends 9/1). LA 9/2 data missing.
+la_09_04_23.csv,Los Angeles,US,2023-09-04,keep,,
+vancouver_09_11_23.csv,Vancouver,CA,2023-09-11,keep,,
+seattle_09_14_23.csv,Seattle,US,2023-09-14,keep,,
+dallas_09_21_23.csv,Dallas,US,2023-09-21,keep,,
+houston_09_23_23.csv,Houston,US,2023-09-23,keep,,
+houston_09_24_23.csv,Houston,US,2023-09-24,drop,houston_09_23_23.csv,Byte-identical to Houston 9/23 (scrape ends 9/23). Houston 9/24 data missing.
+nola_09_27_23.csv,New Orleans,US,2023-09-27,keep,,
+kc_10_01_23.csv,Kansas City,US,2023-10-01,drop,nola_09_27_23.csv,Byte-identical to New Orleans 9/27 (Superdome Plaza/Loge/Terrace zones; scrape ends 9/27). Kansas City data missing.
